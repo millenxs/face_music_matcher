@@ -68,20 +68,21 @@ class YouTubeAudioDownloader:
 
     _YT_DLP_ARGS_WITH_FFMPEG: tuple[str, ...] = (
         "yt-dlp",
-        "-f", "bestaudio/best",
+        "-f", "worstaudio",          # smallest file = fastest download
         "--extract-audio",
         "--audio-format", "wav",
+        "--audio-quality", "32K",     # low bitrate = fast conversion
         "--no-playlist",
         "--no-continue",
-        "--socket-timeout", "30",
+        "--socket-timeout", "15",
     )
 
     _YT_DLP_ARGS_NO_FFMPEG: tuple[str, ...] = (
         "yt-dlp",
-        "-f", "bestaudio[ext=m4a]/bestaudio/best",
+        "-f", "worstaudio/bestaudio",
         "--no-playlist",
         "--no-continue",
-        "--socket-timeout", "30",
+        "--socket-timeout", "15",
     )
 
     def download(self, url: str, output_dir: Path) -> Path:
@@ -117,12 +118,11 @@ class YouTubeAudioDownloader:
                 cmd,
                 capture_output=True,
                 text=True,
-                timeout=180,
+                timeout=90,  # 1.5 min max per download
             )
         except subprocess.TimeoutExpired:
             raise InvalidAudioError(
-                "YouTube download timed out after 3 minutes. "
-                "The video may be too long or the network is slow."
+                "YouTube download timed out. The network may be slow."
             )
 
         if result.returncode != 0:

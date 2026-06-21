@@ -16,7 +16,7 @@ class TestFaceNormalisation:
     def test_normalise_curve_scales_to_unit(self) -> None:
         """Normalised curve points should have max distance <= 1."""
         points = np.array(
-            [[10.0, 20.0], [30.0, 50.0], [60.0, 10.0], [90.0, 80.0]],
+            [[10.0, 20.0, 0.0], [30.0, 50.0, -5.0], [60.0, 10.0, 3.0], [90.0, 80.0, -1.0]],
             dtype=np.float64,
         )
         centroid = points.mean(axis=0)
@@ -27,7 +27,7 @@ class TestFaceNormalisation:
 
     def test_normalise_curve_zero_points(self) -> None:
         """Zero-distance points should not cause division by zero."""
-        points = np.array([[1.0, 2.0], [1.0, 2.0]], dtype=np.float64)
+        points = np.array([[1.0, 2.0, 0.0], [1.0, 2.0, 0.0]], dtype=np.float64)
         centroid = points.mean(axis=0)
         centred = points - centroid
         result = MediaPipeFaceExtractor._normalise_curve(centred)
@@ -38,7 +38,7 @@ class TestFaceNormalisation:
     def test_resample_to_vector_output_size(self) -> None:
         """Resample should always produce 128-element vector."""
         points = np.array(
-            [[0.1, 0.2], [0.3, 0.5], [0.6, 0.1], [0.9, 0.8], [1.0, 0.5]],
+            [[0.1, 0.2, 0.0], [0.3, 0.5, -0.1], [0.6, 0.1, 0.1], [0.9, 0.8, 0.0], [1.0, 0.5, -0.2]],
             dtype=np.float64,
         )
         centroid = points.mean(axis=0)
@@ -51,7 +51,7 @@ class TestFaceNormalisation:
 
     def test_resample_to_vector_two_points(self) -> None:
         """Resample with only 2 points should still work."""
-        points = np.array([[0.0, 0.0], [1.0, 1.0]], dtype=np.float64)
+        points = np.array([[0.0, 0.0, 0.0], [1.0, 1.0, 0.0]], dtype=np.float64)
         centroid = points.mean(axis=0)
         centred = points - centroid
         normalised = MediaPipeFaceExtractor._normalise_curve(centred)

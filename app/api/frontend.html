@@ -106,9 +106,10 @@
         <img class="photo-preview" id="photo-preview" src="" alt="Pré-visualização" style="display:none;">
         <div id="photo-placeholder" style="width:120px;height:120px;border-radius:12px;border:2px dashed var(--border);display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:.7rem;text-align:center;">Sem foto</div>
         <div style="flex:1;">
-          <div style="display:flex;gap:8px;margin-bottom:8px;">
+          <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap;align-items:center;">
             <button class="btn btn-outline" onclick="startCamera()" id="btn-start-cam" style="font-size:.8rem;">📷 Iniciar Câmara</button>
             <button class="btn btn-primary" onclick="capturePhoto()" id="btn-capture" disabled style="font-size:.8rem;">📸 Capturar</button>
+            <button class="btn btn-outline hidden" onclick="stopCamera()" id="btn-stop-cam" style="font-size:.8rem;color:var(--danger);border-color:var(--danger);">⏹ Fechar Câmara</button>
             <span style="font-size:.75rem;color:var(--muted);">ou</span>
             <input type="file" id="image-file" accept="image/jpeg,image/png" onchange="onFileSelected(this)" style="font-size:.8rem;color:var(--text);">
           </div>
@@ -127,6 +128,7 @@
       <div class="music-mode">
         <button class="music-tab active" onclick="switchMusicMode('file')">📁 Ficheiro MP3/WAV</button>
         <button class="music-tab" onclick="switchMusicMode('youtube')">🎬 Link do YouTube</button>
+        <button class="music-tab" onclick="switchMusicMode('spotify')">🟢 Spotify Search</button>
       </div>
       
       <div id="music-file-mode">
@@ -146,6 +148,23 @@
         <p style="font-size:.75rem;color:var(--muted);margin-top:4px;">O áudio é extraído diretamente do YouTube — não precisa de download.</p>
       </div>
       
+      <div id="music-spotify-mode" class="hidden">
+        <div class="input-row">
+          <div class="input-group" style="max-width:120px;flex:0 0 auto;">
+            <label>🔍 Tipo</label>
+            <select id="spotify-search-type" style="width:100%;padding:10px;border-radius:10px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:.9rem;">
+              <option value="artist">Artista</option>
+              <option value="track">Música</option>
+            </select>
+          </div>
+          <div class="input-group">
+            <label>🔎 Pesquisar</label>
+            <input type="text" id="spotify-query" placeholder="H.E.R., Billie Eilish, Bohemian Rhapsody...">
+          </div>
+        </div>
+        <p style="font-size:.75rem;color:var(--muted);margin-top:4px;">Escolhe "Artista" para buscar músicas DE um artista, ou "Música" para buscar pelo nome.</p>
+      </div>
+      
       <button class="btn btn-accent2" onclick="analyze()" id="btn-analyze" style="margin-top:12px;width:100%;padding:14px;font-size:1rem;">🔍 Analisar Compatibilidade</button>
     </div>
   </div>
@@ -159,42 +178,7 @@
   </div>
 
   <!-- ========== RESULTS PANEL ========== -->
-  <div class="panel hidden" id="results-panel">
-    <h2>📊 Resultados</h2>
-    
-    <!-- Big score -->
-    <div class="score-big">
-      <div class="number" id="score-number" style="background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;">--</div>
-      <div class="label">Compatibilidade Global</div>
-    </div>
-    
-    <!-- Component bars -->
-    <div style="margin: 20px 0;">
-      <div class="score-bar"><span class="name">⬜ Maxilar ↔ Graves</span><div class="track"><div class="fill" id="bar-jaw" style="background:var(--jaw)"></div></div><span class="val" id="val-jaw">--</span></div>
-      <div class="score-bar"><span class="name">〰️ Sobrancelhas ↔ Ritmo</span><div class="track"><div class="fill" id="bar-eyebrow" style="background:var(--eyebrow)"></div></div><span class="val" id="val-eyebrow">--</span></div>
-      <div class="score-bar"><span class="name">🔺 Nariz ↔ Médios</span><div class="track"><div class="fill" id="bar-nose" style="background:var(--nose)"></div></div><span class="val" id="val-nose">--</span></div>
-      <div class="score-bar"><span class="name">👄 Boca ↔ Agudos</span><div class="track"><div class="fill" id="bar-mouth" style="background:var(--mouth)"></div></div><span class="val" id="val-mouth">--</span></div>
-    </div>
-    
-    <!-- Plots -->
-    <div class="result-grid">
-      <div><h4 style="margin-bottom:8px;">Curvas do Rosto</h4><img class="plot-img" id="plot-face" src="" alt="Face curves" onclick="openPlot(this.src)"></div>
-      <div><h4 style="margin-bottom:8px;">Curvas da Música</h4><img class="plot-img" id="plot-music" src="" alt="Music curves" onclick="openPlot(this.src)"></div>
-    </div>
-    <div style="margin-top: 12px;">
-      <h4 style="margin-bottom:8px;">Sobreposição — Comparação Direta</h4>
-      <img class="plot-img" id="plot-overlay" src="" alt="Overlay comparison" onclick="openPlot(this.src)" style="max-width: 100%;">
-    </div>
-    
-    <!-- Explanation -->
-    <div id="explanation-section" style="margin-top: 20px;">
-      <h3 style="margin-bottom:12px;">📝 Explicação</h3>
-      <div class="explanation-card">
-        <p id="explanation-overall"></p>
-      </div>
-      <div id="explanation-pairs"></div>
-    </div>
-  </div>
+  <div class="panel hidden" id="results-panel"></div>
 </div>
 
 <div id="toast-container"></div>
@@ -212,6 +196,9 @@ function switchMusicMode(mode) {
   event.target.classList.add('active');
   document.getElementById('music-file-mode').classList.toggle('hidden', mode !== 'file');
   document.getElementById('music-youtube-mode').classList.toggle('hidden', mode !== 'youtube');
+  document.getElementById('music-spotify-mode').classList.toggle('hidden', mode !== 'spotify');
+  // Clear old results when switching modes.
+  resetResults();
 }
 
 // ====================== FILE SELECT ======================
@@ -240,9 +227,23 @@ async function startCamera() {
     video.srcObject = camStream;
     document.getElementById('cam-container').classList.remove('hidden');
     document.getElementById('btn-capture').disabled = false;
+    document.getElementById('btn-start-cam').classList.add('hidden');
+    document.getElementById('btn-stop-cam').classList.remove('hidden');
   } catch (e) {
     toast('Erro ao aceder à câmara: ' + e.message, 'error');
   }
+}
+
+function stopCamera() {
+  if (camStream) {
+    camStream.getTracks().forEach(t => t.stop());
+    camStream = null;
+  }
+  document.getElementById('cam-video').srcObject = null;
+  document.getElementById('cam-container').classList.add('hidden');
+  document.getElementById('btn-capture').disabled = true;
+  document.getElementById('btn-start-cam').classList.remove('hidden');
+  document.getElementById('btn-stop-cam').classList.add('hidden');
 }
 
 function capturePhoto() {
@@ -308,75 +309,207 @@ async function analyze() {
       return;
     }
     if (!youtubeUrl.includes('youtube.com/watch') && !youtubeUrl.includes('youtu.be/')) {
-      toast('❌ Link inválido. Usa https://www.youtube.com/watch?v=...', 'error');
+      toast('❌ Link inválido.', 'error');
       return;
     }
-    
     const formData = new FormData();
     formData.append('image', imgFile);
     formData.append('youtube_url', youtubeUrl);
-    
-    showLoading('A extrair áudio do YouTube (pode demorar até 2 min)...');
+    showLoading('A extrair áudio do YouTube...');
     try {
       const res = await fetch('/compare/youtube', { method: 'POST', body: formData });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || 'Erro na análise via YouTube');
+      if (!res.ok) throw new Error(data.detail || 'Erro');
       showResults(data);
-    } catch (e) {
-      toast('❌ ' + e.message, 'error');
+    } catch (e) { toast('❌ ' + e.message, 'error'); }
+    hideLoading();
+    
+  } else if (musicMode === 'spotify') {
+    const query = document.getElementById('spotify-query').value.trim();
+    const searchType = document.getElementById('spotify-search-type').value;
+    if (!query) {
+      toast('❌ Escreve um artista ou música.', 'error');
+      return;
     }
+    const formData = new FormData();
+    formData.append('image', imgFile);
+    formData.append('query', query);
+    formData.append('search_type', searchType);
+    showLoading('A procurar no Spotify e a analisar...');
+    try {
+      const res = await fetch('/compare/spotify', { method: 'POST', body: formData });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Erro');
+      showSpotifyResults(data);
+    } catch (e) { toast('❌ ' + e.message, 'error'); }
     hideLoading();
   }
 }
 
-// ====================== RESULTS ======================
-function showResults(data) {
+// ====================== SPOTIFY RESULTS ======================
+function showSpotifyResults(data) {
   document.getElementById('results-panel').classList.remove('hidden');
   document.getElementById('results-panel').scrollIntoView({ behavior: 'smooth' });
   
-  // Big score
-  const score = data.compatibility;
-  document.getElementById('score-number').textContent = score.toFixed(1) + '%';
+  let html = `<h2>🏆 Ranking Spotify: "${data.query}"</h2>`;
+  html += `<p style="color:var(--muted);margin-bottom:16px;">${data.tracks_analyzed} músicas analisadas (via YouTube)</p>`;
   
-  // Component bars
-  const components = { jaw_bass: 'jaw', eyebrow_rhythm: 'eyebrow', nose_mid: 'nose', mouth_treble: 'mouth' };
-  for (const [key, prefix] of Object.entries(components)) {
-    const val = data.component_scores[key];
-    document.getElementById('bar-' + prefix).style.width = val + '%';
-    document.getElementById('val-' + prefix).textContent = val.toFixed(1) + '%';
-  }
-  
-  // Plots
-  const base = window.location.origin;
-  document.getElementById('plot-face').src = base + '/' + data.plot_paths.face_curve;
-  document.getElementById('plot-music').src = base + '/' + data.plot_paths.music_curve;
-  document.getElementById('plot-overlay').src = base + '/' + data.plot_paths.overlay_comparison;
-  
-  // Explanation
-  if (data.explanation) {
-    document.getElementById('explanation-overall').textContent = data.explanation.overall;
-    const pairsDiv = document.getElementById('explanation-pairs');
-    pairsDiv.innerHTML = '';
+  if (data.results.length === 0) {
+    html += '<p>Nenhuma música encontrada. Tenta outro termo.</p>';
+  } else {
+    html += '<div style="display:flex;flex-direction:column;gap:12px;">';
     
-    const pairNames = {
-      jaw_bass: '⬜ Maxilar ↔ Graves',
-      eyebrow_rhythm: '〰️ Sobrancelhas ↔ Ritmo',
-      nose_mid: '🔺 Nariz ↔ Médios',
-      mouth_treble: '👄 Boca ↔ Agudos'
-    };
+    const colors = ['#FFD700','#C0C0C0','#CD7F32','#7c5cfc','#7c5cfc','#7c5cfc','#7c5cfc','#7c5cfc','#7c5cfc','#7c5cfc'];
+    const medals = ['🥇','🥈','🥉','4.','5.','6.','7.','8.','9.','10.'];
     
-    for (const [key, name] of Object.entries(pairNames)) {
-      const info = data.explanation.pairs[key];
-      pairsDiv.innerHTML += `
-        <div class="explanation-card" style="margin-top:8px;">
-          <h4>${name} — ${info.score}% (${info.level})</h4>
-          <p><strong>Rosto:</strong> ${info.face_description}</p>
-          <p><strong>Música:</strong> ${info.music_description}</p>
-          <p><em>${info.mapping_rationale}</em></p>
+    data.results.forEach((track, i) => {
+      const barColor = track.compatibility >= 80 ? 'var(--success)' : 
+                       track.compatibility >= 60 ? 'var(--accent2)' : 'var(--warn)';
+      
+      html += `
+        <div style="background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:12px;padding:16px;">
+          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+            <span style="font-size:1.2rem;width:30px;">${medals[i] || ''}</span>
+            <div style="flex:1;min-width:200px;">
+              <strong>${track.track_name}</strong>
+              <div style="font-size:.8rem;color:var(--muted);">${track.artist} · ${track.album}</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <div style="width:100px;height:8px;background:var(--bg);border-radius:4px;overflow:hidden;">
+                <div style="width:${track.compatibility}%;height:100%;background:${barColor};border-radius:4px;"></div>
+              </div>
+              <span style="font-weight:700;font-size:1.1rem;min-width:55px;text-align:right;">${track.compatibility}%</span>
+            </div>
+            ${track.spotify_url ? `<a href="${track.spotify_url}" target="_blank" style="color:var(--accent);text-decoration:none;font-size:.8rem;">▶ Spotify</a>` : ''}
+          </div>
         </div>`;
+    });
+    html += '</div>';
+    
+    // Top 1 detail: component bars.
+    if (data.results.length > 0) {
+      const top = data.results[0];
+      html += `<div style="margin-top:24px;padding-top:20px;border-top:1px solid var(--border);">`;
+      html += `<h3>🔍 Detalhe: ${top.track_name}</h3>`;
+      html += `<div style="margin:16px 0;">`;
+      const comps = { jaw_bass: 'jaw', eyebrow_rhythm: 'eyebrow', nose_mid: 'nose', mouth_treble: 'mouth' };
+      const colors2 = { jaw: 'var(--jaw)', eyebrow: 'var(--eyebrow)', nose: 'var(--nose)', mouth: 'var(--mouth)' };
+      const names = { jaw_bass: '⬜ Maxilar ↔ Graves', eyebrow_rhythm: '〰️ Sobrancelhas ↔ Ritmo', nose_mid: '🔺 Nariz ↔ Médios', mouth_treble: '👄 Boca ↔ Agudos' };
+      for (const [key, prefix] of Object.entries(comps)) {
+        const val = top.component_scores[key] || 0;
+        html += `<div class="score-bar"><span class="name">${names[key]}</span><div class="track"><div class="fill" style="width:${val}%;background:${colors2[prefix]};"></div></div><span class="val">${val.toFixed(1)}%</span></div>`;
+      }
+      html += `</div></div>`;
     }
   }
   
+  // Comparison plots (face, music, overlay).
+  if (data.plot_paths && data.plot_paths.face_curve) {
+    const base = window.location.origin;
+    html += `<div style="margin-top:20px;padding-top:20px;border-top:1px solid var(--border);">`;
+    html += `<h3>📊 Gráficos da Melhor Compatibilidade</h3>`;
+    html += `<div class="result-grid">`;
+    html += `<div><h4>Curvas do Rosto</h4><img class="plot-img" src="${base}/${data.plot_paths.face_curve}" alt="Face curves" onclick="openPlot(this.src)"></div>`;
+    html += `<div><h4>Curvas da Música</h4><img class="plot-img" src="${base}/${data.plot_paths.music_curve}" alt="Music curves" onclick="openPlot(this.src)"></div>`;
+    html += `</div>`;
+    if (data.plot_paths.overlay_comparison) {
+      html += `<div style="margin-top:12px;"><h4>Sobreposição — Comparação Direta</h4><img class="plot-img" src="${base}/${data.plot_paths.overlay_comparison}" alt="Overlay" onclick="openPlot(this.src)" style="max-width:100%;"></div>`;
+    }
+    html += `</div>`;
+  }
+  
+  // Explanation for top result.
+  if (data.explanation) {
+    html += `<div style="margin-top:20px;padding-top:20px;border-top:1px solid var(--border);">`;
+    html += `<h3>📝 Explicação</h3>`;
+    html += `<div class="explanation-card"><p>${data.explanation.overall}</p></div>`;
+    html += `<div id="explanation-pairs"></div>`;
+    html += `</div>`;
+    
+    // Fill pairs after render.
+    setTimeout(() => {
+      const pairsDiv = document.getElementById('explanation-pairs');
+      if (!pairsDiv || !data.explanation.pairs) return;
+      const pairNames = {
+        jaw_bass: '⬜ Maxilar ↔ Graves',
+        eyebrow_rhythm: '〰️ Sobrancelhas ↔ Ritmo',
+        nose_mid: '🔺 Nariz ↔ Médios',
+        mouth_treble: '👄 Boca ↔ Agudos'
+      };
+      for (const [key, name] of Object.entries(pairNames)) {
+        const info = data.explanation.pairs[key];
+        if (!info) continue;
+        pairsDiv.innerHTML += `
+          <div class="explanation-card" style="margin-top:8px;">
+            <h4>${name} — ${info.score}% (${info.level})</h4>
+            <p><strong>Rosto:</strong> ${info.face_description}</p>
+            <p><strong>Música:</strong> ${info.music_description}</p>
+            <p><em>${info.mapping_rationale}</em></p>
+          </div>`;
+      }
+    }, 100);
+  }
+  
+  document.getElementById('results-panel').innerHTML = html;
+  hideLoading();
+}
+
+// ====================== RESULTS ======================
+function showResults(data) {
+  const panel = document.getElementById('results-panel');
+  panel.classList.remove('hidden');
+  panel.scrollIntoView({ behavior: 'smooth' });
+  
+  const score = data.compatibility;
+  const base = window.location.origin;
+  
+  let html = `<h2>📊 Resultados</h2>`;
+  
+  // Big score
+  html += `<div class="score-big">`;
+  html += `<div class="number" style="background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;">${score.toFixed(1)}%</div>`;
+  html += `<div class="label">Compatibilidade Global</div>`;
+  html += `</div>`;
+  
+  // Component bars
+  const comps = { jaw_bass: 'jaw', eyebrow_rhythm: 'eyebrow', nose_mid: 'nose', mouth_treble: 'mouth' };
+  const colors2 = { jaw: 'var(--jaw)', eyebrow: 'var(--eyebrow)', nose: 'var(--nose)', mouth: 'var(--mouth)' };
+  const names2 = { jaw_bass: '⬜ Maxilar ↔ Graves', eyebrow_rhythm: '〰️ Sobrancelhas ↔ Ritmo', nose_mid: '🔺 Nariz ↔ Médios', mouth_treble: '👄 Boca ↔ Agudos' };
+  html += '<div style="margin:20px 0;">';
+  for (const [key, prefix] of Object.entries(comps)) {
+    const val = data.component_scores[key] || 0;
+    html += `<div class="score-bar"><span class="name">${names2[key]}</span><div class="track"><div class="fill" style="width:${val}%;background:${colors2[prefix]};"></div></div><span class="val">${val.toFixed(1)}%</span></div>`;
+  }
+  html += '</div>';
+  
+  // Plots
+  html += '<div class="result-grid">';
+  html += `<div><h4>Curvas do Rosto</h4><img class="plot-img" src="${base}/${data.plot_paths.face_curve}" onclick="openPlot(this.src)"></div>`;
+  html += `<div><h4>Curvas da Música</h4><img class="plot-img" src="${base}/${data.plot_paths.music_curve}" onclick="openPlot(this.src)"></div>`;
+  html += '</div>';
+  if (data.plot_paths.overlay_comparison) {
+    html += `<div style="margin-top:12px;"><h4>Sobreposição — Comparação Direta</h4><img class="plot-img" src="${base}/${data.plot_paths.overlay_comparison}" onclick="openPlot(this.src)" style="max-width:100%;"></div>`;
+  }
+  
+  // Explanation
+  if (data.explanation) {
+    html += '<div style="margin-top:20px;padding-top:20px;border-top:1px solid var(--border);">';
+    html += '<h3>📝 Explicação</h3>';
+    html += `<div class="explanation-card"><p>${data.explanation.overall}</p></div>`;
+    for (const [key, name] of Object.entries(names2)) {
+      const info = data.explanation.pairs[key];
+      if (!info) continue;
+      html += `<div class="explanation-card" style="margin-top:8px;">
+        <h4>${name} — ${info.score}% (${info.level})</h4>
+        <p><strong>Rosto:</strong> ${info.face_description}</p>
+        <p><strong>Música:</strong> ${info.music_description}</p>
+        <p><em>${info.mapping_rationale}</em></p>
+      </div>`;
+    }
+    html += '</div>';
+  }
+  
+  panel.innerHTML = html;
   hideLoading();
 }
 
@@ -384,10 +517,15 @@ function openPlot(src) { window.open(src, '_blank'); }
 
 // ====================== UI HELPERS ======================
 function showLoading(text) {
+  resetResults();
   document.getElementById('loading-text').textContent = text || 'A processar...';
   document.getElementById('loading-panel').classList.remove('hidden');
-  document.getElementById('results-panel').classList.add('hidden');
   document.querySelectorAll('#input-panel button').forEach(b => b.disabled = true);
+}
+
+function resetResults() {
+  document.getElementById('results-panel').classList.add('hidden');
+  document.getElementById('results-panel').innerHTML = '';
 }
 
 function hideLoading() {

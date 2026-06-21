@@ -165,93 +165,93 @@ class MediaPipeFaceExtractor(FaceExtractor):
 
     @staticmethod
     def _extract_curve(landmarks: list, indices: list[int]) -> np.ndarray:
-        """Extract (x, y) coordinates for a set of landmark indices.
+        """Extract 3D (x, y, z) coordinates for a set of landmark indices.
 
-        Coordinates are normalised to [0, 1] by MediaPipe. We convert to
-        a pixel-independent representation.
+        Uses depth (z) alongside (x, y) for pose-aware geometry.
+        Coordinates are normalised to [0, 1] by MediaPipe.
 
         Args:
-            landmarks: Full list of 468 MediaPipe landmarks.
+            landmarks: Full list of 478 MediaPipe landmarks.
             indices: Indices of the landmarks to extract.
 
         Returns:
-            Array of shape (N, 2) with (x, y) normalised coordinates.
+            Array of shape (N, 3) with (x, y, z) normalised coordinates.
         """
         points = np.array(
-            [[landmarks[i].x, landmarks[i].y] for i in indices],
+            [[landmarks[i].x, landmarks[i].y, landmarks[i].z]
+             for i in indices],
             dtype=np.float64,
         )
-        # Centre the points around their centroid for translation invariance.
+        # Centre around centroid for translation invariance.
         centroid = points.mean(axis=0)
         points -= centroid
         return points
 
     @staticmethod
     def _normalise_curve(points: np.ndarray) -> np.ndarray:
-        """Normalise a 2-D point set to unit scale.
+        """Normalise a 3-D point set to unit scale.
 
         Divides by the maximum distance from centroid so the curve is
         invariant to face size in the image.
 
         Args:
-            points: Centred (N, 2) array.
+            points: Centred (N, 3) array.
 
         Returns:
-            Scale-normalised (N, 2) array.
+            Scale-normalised (N, 3) array.
         """
         max_dist = np.max(np.linalg.norm(points, axis=1))
         if max_dist < 1e-8:
-            return points  # degenerate case; avoid division by zero
+            return points
         return points / max_dist
 
     @staticmethod
     def _resample_to_vector(points: np.ndarray) -> np.ndarray:
-        """Convert 2-D point curve to a 1-D vector via interpolation.
+        """Convert a 3-D point curve to a 128-element 1-D signature vector.
 
-        Computes the cumulative arc-length along the curve, then
-        resamples both x and y coordinates at 128 uniformly spaced
-        arc-length positions. The resulting 128-element vector is the
-        concatenation of resampled x and y interleaved, then reduced to
-        128 via additional downsampling.
+        Uses arc-length interpolation along the curve for x, y, and z
+        independently, then interleaves and downsamples. The 3D (x,y,z)
+        coordinates encode depth information, making the signature more
+        robust to head pose variations than pure 2D (x,y).
 
         Args:
-            points: (N, 2) array of normalised curve points.
+            points: (N, 3) array of normalised 3-D curve points.
 
         Returns:
             1-D NumPy array of shape (128,).
         """
         n = len(points)
         if n < 2:
-            # Edge case: duplicate points to reach minimum size.
             points = np.tile(points, (2, 1))
 
-        # Cumulative arc-length along the curve.
+        # Cumulative arc-length along the 3-D curve.
         diffs = np.diff(points, axis=0)
         dists = np.sqrt((diffs ** 2).sum(axis=1))
         arc = np.concatenate([[0.0], np.cumsum(dists)])
         total_arc = arc[-1] if arc[-1] > 0 else 1.0
         arc_norm = arc / total_arc
 
-        # Interpolation targets: 256 evenly spaced points along arc-length.
+        # 256 evenly spaced sample points along arc-length.
         target_t = np.linspace(0, 1, 256)
 
-        interp_x = interp1d(
-            arc_norm, points[:, 0], kind="linear", fill_value="extrapolate"
-        )(target_t)
-        interp_y = interp1d(
-            arc_norm, points[:, 1], kind="linear", fill_value="extrapolate"
-        )(target_t)
+        # Interpolate x, y, z independently.
+        interp_x = interp1d(arc_norm, points[:, 0], kind="linear",
+                            fill_value="extrapolate")(target_t)
+        interp_y = interp1d(arc_norm, points[:, 1], kind="linear",
+                            fill_value="extrapolate")(target_t)
+        interp_z = interp1d(arc_norm, points[:, 2], kind="linear",
+                            fill_value="extrapolate")(target_t)
 
-        # Interleave x and y to create a 512-element signal, then downsample
-        # to 128 by averaging every 4 consecutive values.
-        combined = np.empty(512, dtype=np.float64)
-        combined[0::2] = interp_x
-        combined[1::2] = interp_y
+        # Interleave x,y,z → 768 elements, then downsample to 128.
+        combined = np.empty(768, dtype=np.float64)
+        combined[0::3] = interp_x
+        combined[1::3] = interp_y
+        combined[2::3] = interp_z
 
-        # Downsample 512 → 128 via block averaging.
-        vector = combined.reshape(128, 4).mean(axis=1)
+        # Block average: 768 / 6 = 128.
+        vector = combined.reshape(128, 6).mean(axis=1)
 
-        # Final min-max normalisation to [0, 1].
+        # Min-max normalise to [0, 1].
         v_min, v_max = vector.min(), vector.max()
         if v_max - v_min > 1e-8:
             vector = (vector - v_min) / (v_max - v_min)

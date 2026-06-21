@@ -13,6 +13,30 @@ class YouTubeRequest(BaseModel):
     )
 
 
+class SpotifyRankedTrack(BaseModel):
+    """A single track in a Spotify ranking result."""
+
+    track_name: str
+    artist: str
+    album: str
+    compatibility: float
+    component_scores: dict[str, float]
+    spotify_url: str
+    preview_url: str = ""  # deprecated by Spotify, kept for backwards compat
+
+
+class SpotifyRankingResponse(BaseModel):
+    """Response schema for the Spotify ranking endpoint."""
+
+    query: str
+    total_tracks_found: int
+    tracks_analyzed: int
+    results: list[SpotifyRankedTrack]
+    face_score: dict[str, list[float]]
+    plot_paths: dict[str, str]
+    explanation: Optional[dict] = None
+
+
 class ComparisonResponse(BaseModel):
     """Response schema for the comparison endpoints.
 

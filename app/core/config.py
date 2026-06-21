@@ -8,6 +8,15 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
+# Load .env file if present (for local development).
+try:
+    from dotenv import load_dotenv
+    _env_path = Path(__file__).resolve().parents[2] / ".env"
+    if _env_path.exists():
+        load_dotenv(_env_path)
+except ImportError:
+    pass
+
 
 @dataclass(frozen=True)
 class Config:
@@ -56,6 +65,11 @@ class Config:
     AUDIO_SAMPLE_RATE: int = 22050
     MAX_AUDIO_DURATION: float = 300.0  # seconds (5 minutes)
     MAX_AUDIO_FILE_SIZE_MB: float = 50.0  # megabytes
+
+    # -- Spotify API ----------------------------------------------------------
+    SPOTIFY_CLIENT_ID: str = os.environ.get("SPOTIFY_CLIENT_ID", "")
+    SPOTIFY_CLIENT_SECRET: str = os.environ.get("SPOTIFY_CLIENT_SECRET", "")
+    SPOTIFY_SEARCH_LIMIT: int = 5  # tracks per search (keep low for speed)
 
     # -- Matching -------------------------------------------------------------
     COMPATIBILITY_THRESHOLD: float = 50.0
