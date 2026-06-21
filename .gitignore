@@ -1,0 +1,32 @@
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# Tests & coverage
+.pytest_cache/
+htmlcov/
+.coverage
+*.cover
+
+# Uploads & outputs (runtime files)
+uploads/*
+outputs/*
+!uploads/.gitkeep
+!outputs/.gitkeep
+
+# MediaPipe model cache
+app/infrastructure/vision/_model_cache/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/

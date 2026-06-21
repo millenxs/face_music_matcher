@@ -1,0 +1,12 @@
+__pycache__
+*.pyc
+.venv
+.pytest_cache
+htmlcov
+.coverage
+uploads/*
+outputs/*
+!uploads/.gitkeep
+!outputs/.gitkeep
+.git
+*.md

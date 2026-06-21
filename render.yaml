@@ -1,0 +1,10 @@
+# Render — Blueprint de deploy
+services:
+  - type: web
+    name: face-music-matcher
+    runtime: docker
+    plan: free
+    healthCheckPath: /docs
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.0"

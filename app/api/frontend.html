@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Face Music Matcher</title>
+<style>
+  :root {
+    --bg: #0f0f14;
+    --card: #1a1a24;
+    --border: #2a2a3a;
+    --text: #e0e0f0;
+    --muted: #8888a0;
+    --accent: #7c5cfc;
+    --accent2: #3dd6c8;
+    --success: #4ade80;
+    --warn: #fbbf24;
+    --danger: #f87171;
+    --jaw: #2196F3;
+    --eyebrow: #4CAF50;
+    --nose: #FF9800;
+    --mouth: #E91E63;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+  .container { max-width: 1100px; margin: 0 auto; padding: 20px; }
+  h1 { text-align: center; font-size: 1.8rem; margin: 20px 0; background: linear-gradient(135deg, var(--accent), var(--accent2)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  .subtitle { text-align: center; color: var(--muted); margin-bottom: 30px; font-size: .9rem; }
+  
+  .panel { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 24px; margin-bottom: 20px; }
+  .panel h2 { font-size: 1.1rem; margin-bottom: 16px; color: var(--accent2); }
+  
+  .input-row { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-end; }
+  .input-group { flex: 1; min-width: 220px; }
+  .input-group label { display: block; font-size: .8rem; color: var(--muted); margin-bottom: 4px; text-transform: uppercase; letter-spacing: .5px; }
+  .input-group input { width: 100%; padding: 10px 14px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font-size: .9rem; }
+  .input-group input:focus { outline: none; border-color: var(--accent); }
+  
+  button, .btn {
+    padding: 10px 20px; border-radius: 10px; border: none; cursor: pointer;
+    font-size: .9rem; font-weight: 600; transition: all .2s; white-space: nowrap;
+  }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { background: #6a4ae8; transform: translateY(-1px); box-shadow: 0 4px 15px rgba(124,92,252,.3); }
+  .btn-outline { background: transparent; border: 1px solid var(--accent); color: var(--accent); }
+  .btn-outline:hover { background: var(--accent); color: #fff; }
+  .btn-accent2 { background: var(--accent2); color: #000; }
+  .btn-accent2:hover { background: #2ec4b7; }
+  .btn:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+  
+  .camera-preview { position: relative; border-radius: 12px; overflow: hidden; background: #000; max-width: 400px; margin: 0 auto; }
+  .camera-preview video { width: 100%; display: block; }
+  .camera-preview canvas { display: none; }
+  
+  .result-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 700px) { .result-grid { grid-template-columns: 1fr; } }
+  
+  .score-big { text-align: center; padding: 30px; }
+  .score-big .number { font-size: 4rem; font-weight: 800; line-height: 1; }
+  .score-big .label { color: var(--muted); font-size: .9rem; margin-top: 4px; }
+  
+  .score-bar { display: flex; align-items: center; gap: 10px; margin: 8px 0; }
+  .score-bar .name { width: 120px; font-size: .85rem; text-align: right; }
+  .score-bar .track { flex: 1; height: 20px; background: var(--bg); border-radius: 10px; overflow: hidden; }
+  .score-bar .fill { height: 100%; border-radius: 10px; transition: width .8s ease; }
+  .score-bar .val { width: 50px; font-size: .85rem; font-weight: 600; }
+  
+  .plot-img { width: 100%; border-radius: 8px; border: 1px solid var(--border); cursor: pointer; transition: transform .2s; }
+  .plot-img:hover { transform: scale(1.02); }
+  
+  .explanation-card { padding: 16px; border-radius: 12px; background: rgba(255,255,255,.03); border: 1px solid var(--border); margin: 8px 0; }
+  .explanation-card h4 { font-size: .9rem; margin-bottom: 6px; }
+  .explanation-card p { font-size: .8rem; color: var(--muted); line-height: 1.5; }
+  
+  .spinner { display: inline-block; width: 20px; height: 20px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .6s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  
+  .toast { position: fixed; top: 20px; right: 20px; padding: 12px 20px; border-radius: 10px; font-size: .85rem; z-index: 999; animation: slideIn .3s ease; }
+  .toast.error { background: var(--danger); color: #fff; }
+  .toast.info { background: var(--accent); color: #fff; }
+  @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+  
+  .hidden { display: none !important; }
+  .photo-preview { width: 120px; height: 120px; border-radius: 12px; object-fit: cover; border: 2px solid var(--border); background: #000; }
+  .photo-preview-wrap { display: flex; align-items: center; gap: 12px; }
+  .music-mode { display: flex; gap: 0; margin-bottom: 12px; }
+  .music-tab { flex: 1; padding: 8px; border: 1px solid var(--border); background: transparent; color: var(--muted); cursor: pointer; font-size: .8rem; text-align: center; }
+  .music-tab:first-child { border-radius: 8px 0 0 8px; }
+  .music-tab:last-child { border-radius: 0 8px 8px 0; }
+  .music-tab.active { background: var(--accent2); color: #000; border-color: var(--accent2); }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>🎭 Face Music Matcher</h1>
+  <p class="subtitle">Comparação matemática entre geometria facial e estrutura musical</p>
+
+  <!-- ========== INPUT PANEL ========== -->
+  <div class="panel" id="input-panel">
+    <h2>📥 Entrada</h2>
+    
+    <!-- PHOTO SOURCE -->
+    <div style="margin-bottom: 20px;">
+      <h3 style="font-size:.85rem;color:var(--muted);margin-bottom:10px;">📷 FOTO DO ROSTO</h3>
+      <div class="photo-preview-wrap">
+        <img class="photo-preview" id="photo-preview" src="" alt="Pré-visualização" style="display:none;">
+        <div id="photo-placeholder" style="width:120px;height:120px;border-radius:12px;border:2px dashed var(--border);display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:.7rem;text-align:center;">Sem foto</div>
+        <div style="flex:1;">
+          <div style="display:flex;gap:8px;margin-bottom:8px;">
+            <button class="btn btn-outline" onclick="startCamera()" id="btn-start-cam" style="font-size:.8rem;">📷 Iniciar Câmara</button>
+            <button class="btn btn-primary" onclick="capturePhoto()" id="btn-capture" disabled style="font-size:.8rem;">📸 Capturar</button>
+            <span style="font-size:.75rem;color:var(--muted);">ou</span>
+            <input type="file" id="image-file" accept="image/jpeg,image/png" onchange="onFileSelected(this)" style="font-size:.8rem;color:var(--text);">
+          </div>
+          <div class="camera-preview hidden" id="cam-container">
+            <video id="cam-video" autoplay playsinline></video>
+            <canvas id="cam-canvas" style="display:none;"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- MUSIC SOURCE -->
+    <div style="border-top:1px solid var(--border);padding-top:16px;">
+      <h3 style="font-size:.85rem;color:var(--muted);margin-bottom:10px;">🎵 MÚSICA</h3>
+      
+      <div class="music-mode">
+        <button class="music-tab active" onclick="switchMusicMode('file')">📁 Ficheiro MP3/WAV</button>
+        <button class="music-tab" onclick="switchMusicMode('youtube')">🎬 Link do YouTube</button>
+      </div>
+      
+      <div id="music-file-mode">
+        <div class="input-row">
+          <div class="input-group">
+            <input type="file" id="music-file" accept="audio/wav,audio/mpeg,audio/mp3">
+          </div>
+        </div>
+      </div>
+      
+      <div id="music-youtube-mode" class="hidden">
+        <div class="input-row">
+          <div class="input-group">
+            <input type="text" id="youtube-url" placeholder="https://www.youtube.com/watch?v=... ou https://youtu.be/...">
+          </div>
+        </div>
+        <p style="font-size:.75rem;color:var(--muted);margin-top:4px;">O áudio é extraído diretamente do YouTube — não precisa de download.</p>
+      </div>
+      
+      <button class="btn btn-accent2" onclick="analyze()" id="btn-analyze" style="margin-top:12px;width:100%;padding:14px;font-size:1rem;">🔍 Analisar Compatibilidade</button>
+    </div>
+  </div>
+
+  <!-- ========== LOADING ========== -->
+  <div class="panel hidden" id="loading-panel">
+    <div style="display:flex;align-items:center;gap:12px;justify-content:center;padding:20px;">
+      <div class="spinner"></div>
+      <span id="loading-text">A processar...</span>
+    </div>
+  </div>
+
+  <!-- ========== RESULTS PANEL ========== -->
+  <div class="panel hidden" id="results-panel">
+    <h2>📊 Resultados</h2>
+    
+    <!-- Big score -->
+    <div class="score-big">
+      <div class="number" id="score-number" style="background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;">--</div>
+      <div class="label">Compatibilidade Global</div>
+    </div>
+    
+    <!-- Component bars -->
+    <div style="margin: 20px 0;">
+      <div class="score-bar"><span class="name">⬜ Maxilar ↔ Graves</span><div class="track"><div class="fill" id="bar-jaw" style="background:var(--jaw)"></div></div><span class="val" id="val-jaw">--</span></div>
+      <div class="score-bar"><span class="name">〰️ Sobrancelhas ↔ Ritmo</span><div class="track"><div class="fill" id="bar-eyebrow" style="background:var(--eyebrow)"></div></div><span class="val" id="val-eyebrow">--</span></div>
+      <div class="score-bar"><span class="name">🔺 Nariz ↔ Médios</span><div class="track"><div class="fill" id="bar-nose" style="background:var(--nose)"></div></div><span class="val" id="val-nose">--</span></div>
+      <div class="score-bar"><span class="name">👄 Boca ↔ Agudos</span><div class="track"><div class="fill" id="bar-mouth" style="background:var(--mouth)"></div></div><span class="val" id="val-mouth">--</span></div>
+    </div>
+    
+    <!-- Plots -->
+    <div class="result-grid">
+      <div><h4 style="margin-bottom:8px;">Curvas do Rosto</h4><img class="plot-img" id="plot-face" src="" alt="Face curves" onclick="openPlot(this.src)"></div>
+      <div><h4 style="margin-bottom:8px;">Curvas da Música</h4><img class="plot-img" id="plot-music" src="" alt="Music curves" onclick="openPlot(this.src)"></div>
+    </div>
+    <div style="margin-top: 12px;">
+      <h4 style="margin-bottom:8px;">Sobreposição — Comparação Direta</h4>
+      <img class="plot-img" id="plot-overlay" src="" alt="Overlay comparison" onclick="openPlot(this.src)" style="max-width: 100%;">
+    </div>
+    
+    <!-- Explanation -->
+    <div id="explanation-section" style="margin-top: 20px;">
+      <h3 style="margin-bottom:12px;">📝 Explicação</h3>
+      <div class="explanation-card">
+        <p id="explanation-overall"></p>
+      </div>
+      <div id="explanation-pairs"></div>
+    </div>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+
+<script>
+// ====================== STATE ======================
+let capturedImageBlob = null;
+let camStream = null;
+let musicMode = 'file';  // 'file' or 'youtube'
+
+// ====================== MUSIC MODE SWITCH ======================
+function switchMusicMode(mode) {
+  musicMode = mode;
+  document.querySelectorAll('.music-tab').forEach(t => t.classList.remove('active'));
+  event.target.classList.add('active');
+  document.getElementById('music-file-mode').classList.toggle('hidden', mode !== 'file');
+  document.getElementById('music-youtube-mode').classList.toggle('hidden', mode !== 'youtube');
+}
+
+// ====================== FILE SELECT ======================
+function onFileSelected(input) {
+  const file = input.files[0];
+  if (!file) return;
+  
+  capturedImageBlob = file;
+  
+  const reader = new FileReader();
+  reader.onload = e => {
+    document.getElementById('photo-preview').src = e.target.result;
+    document.getElementById('photo-preview').style.display = 'block';
+    document.getElementById('photo-placeholder').style.display = 'none';
+  };
+  reader.readAsDataURL(file);
+}
+
+// ====================== CAMERA ======================
+async function startCamera() {
+  try {
+    camStream = await navigator.mediaDevices.getUserMedia({ 
+      video: { width: 640, height: 480, facingMode: 'user' } 
+    });
+    const video = document.getElementById('cam-video');
+    video.srcObject = camStream;
+    document.getElementById('cam-container').classList.remove('hidden');
+    document.getElementById('btn-capture').disabled = false;
+  } catch (e) {
+    toast('Erro ao aceder à câmara: ' + e.message, 'error');
+  }
+}
+
+function capturePhoto() {
+  const video = document.getElementById('cam-video');
+  const canvas = document.getElementById('cam-canvas');
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  canvas.getContext('2d').drawImage(video, 0, 0);
+  
+  canvas.toBlob(blob => {
+    capturedImageBlob = blob;
+    
+    // Show preview
+    const url = URL.createObjectURL(blob);
+    document.getElementById('photo-preview').src = url;
+    document.getElementById('photo-preview').style.display = 'block';
+    document.getElementById('photo-placeholder').style.display = 'none';
+    
+    toast('📸 Foto capturada!', 'info');
+  }, 'image/jpeg', 0.9);
+}
+
+// ====================== ANALYSIS ======================
+async function analyze() {
+  // -- Get image ------------------------------------------------------------
+  let imgFile;
+  if (capturedImageBlob instanceof File) {
+    imgFile = capturedImageBlob;
+  } else if (capturedImageBlob instanceof Blob) {
+    imgFile = new File([capturedImageBlob], 'webcam.jpg', { type: 'image/jpeg' });
+  } else {
+    toast('❌ Seleciona ou captura uma foto primeiro.', 'error');
+    return;
+  }
+  
+  // -- Music mode -----------------------------------------------------------
+  if (musicMode === 'file') {
+    const musicFile = document.getElementById('music-file').files[0];
+    if (!musicFile) {
+      toast('❌ Seleciona um ficheiro de música.', 'error');
+      return;
+    }
+    
+    const formData = new FormData();
+    formData.append('image', imgFile);
+    formData.append('music', musicFile);
+    
+    showLoading('A analisar...');
+    try {
+      const res = await fetch('/compare', { method: 'POST', body: formData });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Erro na análise');
+      showResults(data);
+    } catch (e) {
+      toast('❌ ' + e.message, 'error');
+    }
+    hideLoading();
+    
+  } else if (musicMode === 'youtube') {
+    const youtubeUrl = document.getElementById('youtube-url').value.trim();
+    if (!youtubeUrl) {
+      toast('❌ Cola o link do YouTube.', 'error');
+      return;
+    }
+    if (!youtubeUrl.includes('youtube.com/watch') && !youtubeUrl.includes('youtu.be/')) {
+      toast('❌ Link inválido. Usa https://www.youtube.com/watch?v=...', 'error');
+      return;
+    }
+    
+    const formData = new FormData();
+    formData.append('image', imgFile);
+    formData.append('youtube_url', youtubeUrl);
+    
+    showLoading('A extrair áudio do YouTube (pode demorar até 2 min)...');
+    try {
+      const res = await fetch('/compare/youtube', { method: 'POST', body: formData });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Erro na análise via YouTube');
+      showResults(data);
+    } catch (e) {
+      toast('❌ ' + e.message, 'error');
+    }
+    hideLoading();
+  }
+}
+
+// ====================== RESULTS ======================
+function showResults(data) {
+  document.getElementById('results-panel').classList.remove('hidden');
+  document.getElementById('results-panel').scrollIntoView({ behavior: 'smooth' });
+  
+  // Big score
+  const score = data.compatibility;
+  document.getElementById('score-number').textContent = score.toFixed(1) + '%';
+  
+  // Component bars
+  const components = { jaw_bass: 'jaw', eyebrow_rhythm: 'eyebrow', nose_mid: 'nose', mouth_treble: 'mouth' };
+  for (const [key, prefix] of Object.entries(components)) {
+    const val = data.component_scores[key];
+    document.getElementById('bar-' + prefix).style.width = val + '%';
+    document.getElementById('val-' + prefix).textContent = val.toFixed(1) + '%';
+  }
+  
+  // Plots
+  const base = window.location.origin;
+  document.getElementById('plot-face').src = base + '/' + data.plot_paths.face_curve;
+  document.getElementById('plot-music').src = base + '/' + data.plot_paths.music_curve;
+  document.getElementById('plot-overlay').src = base + '/' + data.plot_paths.overlay_comparison;
+  
+  // Explanation
+  if (data.explanation) {
+    document.getElementById('explanation-overall').textContent = data.explanation.overall;
+    const pairsDiv = document.getElementById('explanation-pairs');
+    pairsDiv.innerHTML = '';
+    
+    const pairNames = {
+      jaw_bass: '⬜ Maxilar ↔ Graves',
+      eyebrow_rhythm: '〰️ Sobrancelhas ↔ Ritmo',
+      nose_mid: '🔺 Nariz ↔ Médios',
+      mouth_treble: '👄 Boca ↔ Agudos'
+    };
+    
+    for (const [key, name] of Object.entries(pairNames)) {
+      const info = data.explanation.pairs[key];
+      pairsDiv.innerHTML += `
+        <div class="explanation-card" style="margin-top:8px;">
+          <h4>${name} — ${info.score}% (${info.level})</h4>
+          <p><strong>Rosto:</strong> ${info.face_description}</p>
+          <p><strong>Música:</strong> ${info.music_description}</p>
+          <p><em>${info.mapping_rationale}</em></p>
+        </div>`;
+    }
+  }
+  
+  hideLoading();
+}
+
+function openPlot(src) { window.open(src, '_blank'); }
+
+// ====================== UI HELPERS ======================
+function showLoading(text) {
+  document.getElementById('loading-text').textContent = text || 'A processar...';
+  document.getElementById('loading-panel').classList.remove('hidden');
+  document.getElementById('results-panel').classList.add('hidden');
+  document.querySelectorAll('#input-panel button').forEach(b => b.disabled = true);
+}
+
+function hideLoading() {
+  document.getElementById('loading-panel').classList.add('hidden');
+  document.querySelectorAll('#input-panel button').forEach(b => b.disabled = false);
+}
+
+function toast(msg, type) {
+  const el = document.createElement('div');
+  el.className = 'toast ' + (type || 'info');
+  el.textContent = msg;
+  document.getElementById('toast-container').appendChild(el);
+  setTimeout(() => el.remove(), 4000);
+}
+</script>
+</body>
+</html>
