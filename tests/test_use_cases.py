@@ -7,6 +7,7 @@ import pytest
 
 from app.domain.entities.signatures import FaceSignature, MusicSignature
 from app.infrastructure.matching.cosine_matcher import CosineEuclideanMatcher
+from app.infrastructure.matching.hybrid_matcher import HybridMatcher
 from app.use_cases.comparison import CompareFaceAndMusicUseCase
 
 
@@ -20,27 +21,38 @@ def _make_vec(seed: int = 42) -> np.ndarray:
     return (vec - vec.min()) / (vec.max() - vec.min() + 1e-8)
 
 
-class FakeFaceExtractor:
-    """Fake face extractor that returns a deterministic signature."""
+class FakeFaceBuilder:
+    """Fake face builder that returns a deterministic full signature."""
 
-    def extract(self, image_path: Path) -> FaceSignature:
+    def build(self, image_path: Path) -> FaceSignature:
         return FaceSignature(
             jaw_vector=_make_vec(1),
             eyebrow_vector=_make_vec(2),
             nose_vector=_make_vec(3),
             mouth_vector=_make_vec(4),
+            edge_vector=_make_vec(10),
+            contour_vector=_make_vec(11),
+            orientation_vector=_make_vec(12),
+            histogram_vector=_make_vec(13),
+            entropy_vector=_make_vec(14),
         )
 
 
-class FakeMusicExtractor:
-    """Fake music extractor that returns a deterministic signature."""
+class FakeMusicBuilder:
+    """Fake music builder that returns a deterministic full signature."""
 
-    def extract(self, audio_path: Path) -> MusicSignature:
+    def build(self, audio_path: Path) -> MusicSignature:
         return MusicSignature(
             bass_vector=_make_vec(5),
             mid_vector=_make_vec(6),
             treble_vector=_make_vec(7),
             rhythm_vector=_make_vec(8),
+            spectrogram_vector=_make_vec(15),
+            spectrogram_edge_vector=_make_vec(16),
+            spectrogram_canny_vector=_make_vec(161),
+            spectrogram_hough_vector=_make_vec(162),
+            spectrogram_histogram_vector=_make_vec(17),
+            spectrogram_entropy_vector=_make_vec(18),
         )
 
 
@@ -62,13 +74,12 @@ class TestCompareFaceAndMusicUseCase:
     def test_full_pipeline(self, tmp_path: Path) -> None:
         """Should run the full pipeline and return a valid result."""
         use_case = CompareFaceAndMusicUseCase(
-            face_extractor=FakeFaceExtractor(),
-            music_extractor=FakeMusicExtractor(),
-            matcher=CosineEuclideanMatcher(),
+            face_builder=FakeFaceBuilder(),
+            music_builder=FakeMusicBuilder(),
+            matcher=HybridMatcher(),
             plot_generator=FakePlotGenerator(),
         )
 
-        # Create dummy files.
         img = tmp_path / "test.jpg"
         img.write_text("fake image")
         aud = tmp_path / "test.mp3"
@@ -76,6 +87,8 @@ class TestCompareFaceAndMusicUseCase:
 
         result = use_case.execute(img, aud)
         assert 0.0 <= result.compatibility <= 100.0
-        assert len(result.component_scores) == 4
+        assert "geometric" in result.component_scores
+        assert "structural" in result.component_scores
+        assert "statistical" in result.component_scores
         assert "face_curve" in result.plot_paths
         assert len(result.face_score["jaw_vector"]) == 128

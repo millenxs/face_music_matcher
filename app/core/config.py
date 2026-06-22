@@ -63,8 +63,8 @@ class Config:
     # -- Processing limits ----------------------------------------------------
     MAX_IMAGE_SIZE: int = 1024
     AUDIO_SAMPLE_RATE: int = 22050
-    MAX_AUDIO_DURATION: float = 300.0  # seconds (5 minutes)
-    MAX_AUDIO_FILE_SIZE_MB: float = 50.0  # megabytes
+    MAX_AUDIO_DURATION: float = 600.0  # seconds (10 minutes)
+    MAX_AUDIO_FILE_SIZE_MB: float = 100.0  # megabytes (WAV conversion expands size)
 
     # -- Spotify API ----------------------------------------------------------
     SPOTIFY_CLIENT_ID: str = os.environ.get("SPOTIFY_CLIENT_ID", "")

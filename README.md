@@ -129,7 +129,7 @@ face_music_matcher/
 │   │   ├── matching/        # Cosine + Euclidean matcher
 │   │   └── storage/         # Plot generator
 │   └── use_cases/           # Application use cases
-├── tests/                   # Pytest test suite (53 tests, 89% coverage)
+├── tests/                   # Pytest test suite (78 tests, 76% coverage)
 ├── uploads/                 # Temporary file storage
 ├── outputs/                 # Generated visualisation plots
 ├── .env                     # Spotify API credentials (gitignored)
@@ -372,10 +372,10 @@ curl -X POST http://127.0.0.1:8000/compare/spotify \
 ## 🧪 Testing
 
 ```bash
-# Run all tests (53 tests)
+# Run all tests (78 tests)
 pytest
 
-# With coverage report (89% coverage)
+# With coverage report (76% coverage)
 pytest --cov=app --cov-report=term-missing --cov-report=html
 ```
 
@@ -409,60 +409,233 @@ SPOTIFY_CLIENT_SECRET=your_client_secret
 
 ## 🧠 Technical Details
 
-### Face Extraction (MediaPipe — 3D)
+---
 
-1. Load image with OpenCV.
-2. Detect **478 face landmarks (x, y, z)** via MediaPipe Face Landmarker.
-3. Select 4 regions: jawline, eyebrows, nose, mouth.
-4. Centre and normalise **3D coordinates** (translation + scale invariance).
-5. Arc-length interpolation along the 3D curve → interleave (x,y,z) → 768 pts.
-6. Downsample to **128-D vector** with min-max normalisation.
+### 🖼️ Computer Vision Pipeline
 
-The `z` coordinate (depth) makes the signature more robust to head pose variations
-than pure 2D (x,y) extraction.
+The face image goes through **six independent extractors**, each producing a
+128-D vector. These are combined into a single FaceSignature.
 
-### Spotify Integration
+#### 1. Geometric Signature — MediaPipe Face Landmarker (3D)
 
-1. Search Spotify API for tracks matching the query (`artist:NAME` or `track:NAME`).
-2. For each track, search YouTube via `yt-dlp` (`ytsearch:track_name artist`).
-3. Download and convert to WAV via ffmpeg.
-4. Extract MusicSignature and compare with FaceSignature.
-5. Return top N results ranked by compatibility.
+| Step | Technique | Output |
+|------|-----------|--------|
+| 1 | MediaPipe Face Landmarker | 478 landmarks (x, y, z) |
+| 2 | Select 4 anatomical regions | jawline (17 pts), eyebrows (20), nose (17), mouth (20) |
+| 3 | Centre on centroid | Translation invariance |
+| 4 | Normalise by max distance | Scale invariance |
+| 5 | Arc-length interpolation | 256 samples per dimension |
+| 6 | Interleave x, y, z → 768 → downsample | **128-D vector** |
 
-Requires `SPOTIFY_CLIENT_ID` and `SPOTIFY_CLIENT_SECRET` environment variables
-(see `.env` file). Get credentials at https://developer.spotify.com/dashboard.
+**Contribution**: Captures the 3D anatomical structure independent of face size
+and position. The `z` coordinate provides depth information, reducing sensitivity
+to head pose.
 
-### YouTube Audio Extraction
+#### 2. Edge Signature — Sobel Operator
 
-Uses `yt-dlp` to download audio from YouTube URLs. Requires `ffmpeg` for WAV
-conversion (installed automatically via the Dockerfile).
+| Step | Technique | Output |
+|------|-----------|--------|
+| 1 | Convert to grayscale, resize 256×256 | Normalised image |
+| 2 | `cv2.Sobel(gx)` + `cv2.Sobel(gy)` | Horizontal + vertical gradients |
+| 3 | `sqrt(gx² + gy²)` | Gradient magnitude |
+| 4 | Interleave (gx, gy, mag) → downsample | **128-D vector** |
 
-- YouTube links: `https://www.youtube.com/watch?v=...` or `https://youtu.be/...`
-- Also supports `ytsearch:query` for programmatic search.
+**Contribution**: Extracts directional edges and texture. Sharp jawlines and
+defined eyebrows produce stronger Sobel responses, capturing facial definition.
 
-### Explanation Generator
+#### 3. Contour Signature — Canny Edge Detector
 
-Produces natural language (Portuguese) explanations for each compatibility score,
-describing what each face region and music component represent and why they are
-paired together.
+| Step | Technique | Output |
+|------|-----------|--------|
+| 1 | `cv2.Canny(low=50, high=150)` | Binary edge map |
+| 2 | Row/column edge profiles | Horizontal + vertical edge density |
+| 3 | 16×16 block edge density | Spatial distribution map |
+| 4 | Concatenate profiles → resample | **128-D vector** |
 
-### Music Processing (Librosa)
+**Contribution**: Detects structural contours. Differentiates smooth vs angular
+facial features through edge count and spatial distribution.
 
-1. Load audio in mono at 22,050 Hz.
-2. Apply Butterworth band-pass filters:
-   - **Bass**: 20–250 Hz
-   - **Mid**: 250–2,000 Hz
-   - **Treble**: 2,000–8,000 Hz
-3. Compute waveform envelope for each band.
-4. Extract RMS energy for rhythm.
-5. Resample all components to 128 points with min-max normalisation.
+#### 4. Orientation Signature — Hough Line Transform
 
-### Matching (Cosine + Euclidean)
+| Step | Technique | Output |
+|------|-----------|--------|
+| 1 | Canny edges as input | Binary edge map |
+| 2 | `cv2.HoughLinesP` | Detected line segments |
+| 3 | Compute angle per line | Angles in [0°, 180°) |
+| 4 | 36-bin angular histogram → resample | **128-D vector** |
 
-- **Cosine similarity**: Measures directional alignment (scale-invariant).
-- **Euclidean distance**: Measures absolute distance (normalised).
-- Combined formula: `score = 0.7 * cosine + 0.3 * euclidean`.
-- Final output scaled to 0–100%.
+**Contribution**: Measures dominant line orientations. A square jaw produces
+near-horizontal lines; an oval face has more curved (distributed) angles.
+
+#### 5. Histogram Signature — Grayscale Distribution
+
+| Step | Technique | Output |
+|------|-----------|--------|
+| 1 | `cv2.calcHist` (256 bins) | Original histogram |
+| 2 | `cv2.equalizeHist` + calcHist | Equalised histogram |
+| 3 | Interleave both → downsample | **128-D vector** |
+
+**Contribution**: Captures global brightness and contrast distribution.
+Complements edge-based signatures with tonal information.
+
+#### 6. Entropy Signature — Shannon Entropy
+
+| Step | Technique | Output |
+|------|-----------|--------|
+| 1 | Global Shannon entropy | Visual complexity (scalar) |
+| 2 | 8×8 block local entropy | Spatial complexity map |
+| 3 | Concatenate + resample | **128-D vector** |
+
+**Contribution**: Quantifies visual information content. High-entropy faces
+(glasses, facial hair, texture) differ from low-entropy (smooth, uniform).
+
+---
+
+### 🎵 Digital Signal Processing Pipeline
+
+Music is analysed in **two layers**: frequency-band decomposition and
+spectrogram-based DSP.
+
+#### Layer 1: Frequency Bands (Original)
+
+| Component | Range | Technique |
+|-----------|-------|-----------|
+| **Bass** | 20–250 Hz | Butterworth band-pass (4th order) → envelope → 128-D |
+| **Mid** | 250–2,000 Hz | Butterworth band-pass → envelope → 128-D |
+| **Treble** | 2,000–8,000 Hz | Butterworth band-pass → envelope → 128-D |
+| **Rhythm** | — | `librosa.feature.rms` → 128-D |
+
+#### Layer 2: Spectrogram Analysis (New)
+
+All spectrogram extractors start from a **Mel spectrogram** (128 mel bands,
+dB scale) computed via `librosa.feature.melspectrogram`.
+
+| Extractor | Technique | What it captures |
+|-----------|-----------|-----------------|
+| **Spectrogram** | Frequency + time profiles | Spectral energy distribution |
+| **Spectrogram Sobel** | `cv2.Sobel` on spectrogram image | Transients, note onsets, attacks |
+| **Spectrogram Histogram** | Histogram + spectral contrast | Spectral dynamic range |
+| **Spectrogram Entropy** | Per-band + per-frame Shannon entropy | Spectral complexity and variation |
+
+**Architecture note**: Applying OpenCV to the spectrogram treats it as an image,
+bridging audio DSP with computer vision techniques.
+
+#### Spotify Integration
+
+1. Search Spotify API (`artist:NAME` or `track:NAME`)
+2. For each track, search YouTube via `yt-dlp` (`ytsearch:track artist`)
+3. Download → convert to WAV via ffmpeg
+4. Extract MusicSignature → compare with FaceSignature
+5. Return top N ranked by compatibility
+
+#### YouTube Audio Extraction
+
+Uses `yt-dlp` with `worstaudio` format for speed. Requires `ffmpeg` for WAV
+conversion.
+
+---
+
+### 🧮 Mathematical Matching Pipeline (Hybrid)
+
+The HybridMatcher combines three independent comparison layers with weighted
+scoring:
+
+```
+compatibility = 0.40 × geometric_score + 0.35 × structural_score + 0.25 × statistical_score
+```
+
+#### Layer 1: Geometric (weight 40%)
+
+| Face | Music | Rationale |
+|------|-------|-----------|
+| Jawline ↔ Bass | Foundation | Structural base of face / sonic foundation |
+| Eyebrows ↔ Rhythm | Articulation | Temporal articulation / rhythmic pulse |
+| Nose ↔ Mid | Centre | Central axis / harmonic core |
+| Mouth ↔ Treble | Detail | Expressive detail / high-frequency texture |
+
+Each pair uses **cosine similarity (70%) + Euclidean distance (30%)**.
+The four scores are averaged.
+
+#### Layer 2: Structural (weight 35%)
+
+| Face | Music | Rationale |
+|------|-------|-----------|
+| Face Edge (Sobel) ↔ Spectrogram Edge | Both detect gradients and transitions |
+| Face Contour (Canny) ↔ Spectrogram Structure | Both capture structural boundaries |
+| Face Orientation (Hough) ↔ Spectrogram Transitions | Both measure directional patterns |
+
+Averages the three pairwise scores. Falls back to 50% if vectors are missing.
+
+#### Layer 3: Statistical (weight 25%)
+
+| Face | Music | Rationale |
+|------|-------|-----------|
+| Histogram ↔ Spectrogram Histogram | Both capture energy/tonal distribution |
+| Entropy ↔ Spectrogram Entropy | Both quantify information complexity |
+
+Averages the two pairwise scores.
+
+#### Score Interpretation
+
+| Range | Level | Meaning |
+|-------|-------|---------|
+| 80–100% | Very High | Exceptional mathematical alignment across layers |
+| 60–80% | High | Good correspondence with some divergence |
+| 40–60% | Moderate | Some alignment but considerable differences |
+| 0–40% | Low | Curves follow very different trajectories |
+
+---
+
+### ⚡ Performance Optimisation
+
+#### SHA256 Signature Cache
+
+- Face signatures are cached by SHA256 hash of the image file
+- Music signatures are cached by SHA256 hash of the audio file
+- Same file → instant lookup (no recomputation)
+- In-memory cache (no external dependency)
+
+#### YouTube Download Optimisation
+
+- Uses `worstaudio` quality for fastest downloads
+- Low bitrate WAV conversion (32K) — sufficient for envelope extraction
+- 90-second per-track timeout
+- 5 tracks max per Spotify search (configurable)
+
+---
+
+### 📐 Architecture Decision Records (ADR)
+
+#### ADR-001: Why 128-D vectors?
+
+Balance between information preservation and computational efficiency.
+128 dimensions capture enough structure for meaningful comparison while
+keeping RAM usage low (~4 KB per signature).
+
+#### ADR-002: Why Cosine + Euclidean hybrid?
+
+Cosine similarity is scale-invariant but ignores magnitude. Euclidean
+distance captures absolute differences but is sensitive to scale.
+Combining both (70/30) gives a robust similarity measure.
+
+#### ADR-003: Why three-layer matching?
+
+A single comparison layer (e.g., only geometric) is too narrow. Three
+independent layers (geometric, structural, statistical) provide triangulation:
+each layer captures different aspects of the face-music relationship.
+
+#### ADR-004: Why OpenCV on spectrograms?
+
+Treating the spectrogram as an image allows reusing the same computer
+vision techniques (Sobel, histogram, entropy) on both face images and
+audio representations. This creates a unified mathematical framework.
+
+#### ADR-005: Why no ML/neural networks?
+
+The project is an experiment in pure mathematical comparison.
+Classical CV and DSP techniques are deterministic, interpretable,
+and don't require training data. Every score can be traced back to
+specific mathematical operations.
 
 ---
 

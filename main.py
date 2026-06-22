@@ -199,10 +199,16 @@ def run_cli(args: argparse.Namespace) -> None:
         object.__setattr__(config, "OUTPUT_DIR", args.output_dir)
 
     # Wire dependencies.
+    from app.infrastructure.audio.music_signature_builder import MusicSignatureBuilder
+    from app.infrastructure.matching.hybrid_matcher import HybridMatcher
+    from app.infrastructure.storage.plot_generator import MatplotlibPlotGenerator
+    from app.infrastructure.vision.face_signature_builder import FaceSignatureBuilder
+    from app.use_cases.comparison import CompareFaceAndMusicUseCase
+
     use_case = CompareFaceAndMusicUseCase(
-        face_extractor=MediaPipeFaceExtractor(),
-        music_extractor=LibrosaMusicExtractor(),
-        matcher=CosineEuclideanMatcher(),
+        face_builder=FaceSignatureBuilder(),
+        music_builder=MusicSignatureBuilder(),
+        matcher=HybridMatcher(),
         plot_generator=MatplotlibPlotGenerator(),
     )
 

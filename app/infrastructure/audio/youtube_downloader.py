@@ -67,7 +67,7 @@ class YouTubeAudioDownloader:
     """
 
     _YT_DLP_ARGS_WITH_FFMPEG: tuple[str, ...] = (
-        "yt-dlp",
+        sys.executable, "-m", "yt_dlp",
         "-f", "worstaudio",          # smallest file = fastest download
         "--extract-audio",
         "--audio-format", "wav",
@@ -78,7 +78,7 @@ class YouTubeAudioDownloader:
     )
 
     _YT_DLP_ARGS_NO_FFMPEG: tuple[str, ...] = (
-        "yt-dlp",
+        sys.executable, "-m", "yt_dlp",
         "-f", "worstaudio/bestaudio",
         "--no-playlist",
         "--no-continue",

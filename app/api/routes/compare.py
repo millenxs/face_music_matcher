@@ -30,6 +30,7 @@ from app.core.exceptions import (
 )
 from app.domain.entities.signatures import ComparisonResult
 from app.infrastructure.storage.explanation_generator import ExplanationGenerator
+from app.infrastructure.storage.signature_cache import signature_cache
 from app.use_cases.comparison import CompareFaceAndMusicUseCase
 
 router = APIRouter(prefix="/compare", tags=["comparison"])
@@ -42,15 +43,15 @@ router = APIRouter(prefix="/compare", tags=["comparison"])
 @lru_cache(maxsize=1)
 def _get_use_case() -> CompareFaceAndMusicUseCase:
     """Create and cache the comparison use case with all adapters."""
-    from app.infrastructure.audio.librosa_extractor import LibrosaMusicExtractor
-    from app.infrastructure.matching.cosine_matcher import CosineEuclideanMatcher
+    from app.infrastructure.audio.music_signature_builder import MusicSignatureBuilder
+    from app.infrastructure.matching.hybrid_matcher import HybridMatcher
     from app.infrastructure.storage.plot_generator import MatplotlibPlotGenerator
-    from app.infrastructure.vision.mediapipe_extractor import MediaPipeFaceExtractor
+    from app.infrastructure.vision.face_signature_builder import FaceSignatureBuilder
 
     return CompareFaceAndMusicUseCase(
-        face_extractor=MediaPipeFaceExtractor(),
-        music_extractor=LibrosaMusicExtractor(),
-        matcher=CosineEuclideanMatcher(),
+        face_builder=FaceSignatureBuilder(),
+        music_builder=MusicSignatureBuilder(),
+        matcher=HybridMatcher(),
         plot_generator=MatplotlibPlotGenerator(),
     )
 
@@ -257,10 +258,13 @@ async def rank_spotify_for_face(
     try:
         _save_upload(image, image_path)
 
-        # Extract face signature once.
-        from app.infrastructure.vision.mediapipe_extractor import MediaPipeFaceExtractor
-        face_extractor = MediaPipeFaceExtractor()
-        face = face_extractor.extract(image_path)
+        # Extract face signature once (cached via SHA256).
+        from app.infrastructure.vision.face_signature_builder import FaceSignatureBuilder
+        face_builder = FaceSignatureBuilder()
+        face = signature_cache.get_face(image_path)
+        if face is None:
+            face = face_builder.build(image_path)
+            signature_cache.put_face(image_path, face)
 
         # Search Spotify.
         client = SpotifyClient()
